@@ -3,6 +3,7 @@ require('dotenv').config()
 const express = require('express')
 const bodyParser = require('body-parser')
 const task = require('./task')
+const proposal = require('./proposal')
 const signature = require('./verifySignature')
 const debug = require('debug')('slash-command-template:index')
 
@@ -35,7 +36,21 @@ app.get('/', (req, res) => {
 app.post('/newtask', (req, res) => {
   // Verify the signing secret
   if (signature.isVerified(req)) {
-    task.newTask(req, res)
+    task.create(req, res)
+  } else {
+    debug('Verification token mismatch')
+    res.sendStatus(404)
+  }
+})
+
+/*
+ * Endpoint to receive /newproposal slash command from Slack.
+ * Checks verification token and opens a dialog to capture more info.
+ */
+app.post('/newproposal', (req, res) => {
+  // Verify the signing secret
+  if (signature.isVerified(req)) {
+    proposal.create(req, res)
   } else {
     debug('Verification token mismatch')
     res.sendStatus(404)
@@ -57,8 +72,18 @@ app.post('/interactive', (req, res) => {
     // Slack knows the command was received
     res.send('')
 
-    // create task
-    task.create(body.user.id, body)
+    // finish dialog
+    switch (body.callback_id) {
+      case 'submitTask':
+        task.finish(body.user.id, body)
+        break
+      case 'submitProposal':
+        proposal.finish(body.user.id, body)
+        break
+      default:
+        debug('No handler for dialog finish')
+    }
+
   } else {
     debug('Token mismatch')
     res.sendStatus(404)

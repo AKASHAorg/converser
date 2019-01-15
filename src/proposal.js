@@ -4,7 +4,7 @@ const qs = require('querystring')
 const users = require('./users')
 
 /*
- *  Process requests for new tasks
+ *  Process requests for new proposals
  */
 const create = (req, res) => {
   // extract the slash command text, and trigger ID from payload
@@ -15,8 +15,8 @@ const create = (req, res) => {
     token: process.env.SLACK_ACCESS_TOKEN,
     trigger_id,
     dialog: JSON.stringify({
-      title: 'Submit a new task',
-      callback_id: 'submitTask',
+      title: 'Submit a new proposal',
+      callback_id: 'submitProposal',
       submit_label: 'Submit',
       elements: [
         {
@@ -24,29 +24,13 @@ const create = (req, res) => {
           type: 'text',
           name: 'title',
           value: text,
-          hint: '10 second summary of the problem'
-        },
-        {
-          label: 'Assign to',
-          name: 'assignee',
-          type: 'select',
-          data_source: 'users'
+          hint: '10 second summary of the proposal'
         },
         {
           label: 'Description',
           type: 'textarea',
           name: 'description',
           optional: true
-        },
-        {
-          label: 'Urgency',
-          type: 'select',
-          name: 'urgency',
-          options: [
-            { label: 'Low', value: 'Low' },
-            { label: 'Medium', value: 'Medium' },
-            { label: 'High', value: 'High' }
-          ]
         }
       ]
     })
@@ -64,38 +48,28 @@ const create = (req, res) => {
 }
 
 /*
- *  Send task creation confirmation via
+ *  Send proposal creation confirmation via
  *  chat.postMessage to the user who created it
  */
-const sendConfirmation = (task) => {
+const sendConfirmation = (proposal) => {
   axios.post('https://slack.com/api/chat.postMessage', qs.stringify({
     token: process.env.SLACK_ACCESS_TOKEN,
-    channel: task.channelId,
+    channel: proposal.channelId,
     as_user: true,
     attachments: JSON.stringify([
       {
-        title: `New task created by ${task.author}`,
+        title: `New proposal created by ${proposal.author}`,
         // Get this from github issues
         title_link: 'https://github.com',
-        text: task.text,
+        text: proposal.text,
         fields: [
           {
             title: 'Title',
-            value: task.title
+            value: proposal.title
           },
           {
             title: 'Description',
-            value: task.description || 'None provided'
-          },
-          {
-            title: 'Urgency',
-            value: task.urgency,
-            short: true
-          },
-          {
-            title: 'Assigned to',
-            value: task.assignee,
-            short: true
+            value: proposal.description || 'None provided'
           }
         ]
       }
@@ -108,28 +82,27 @@ const sendConfirmation = (task) => {
   })
 }
 
-// Finish creating task. Call users.find to get the user's email address
+// Finish creating the proposal. Call users.find to get the user's email address
 // from their user ID
 const finish = (userId, body) => {
-  const task = {}
+  const proposal = {}
   const fetchUserName = new Promise((resolve, reject) => {
-    users.find(body.submission.assignee).then((result) => {
+    users.find(body.user.id).then((result) => {
       debug(`Find user: ${userId}`)
       const username = result.data.user.profile.real_name || result.data.user.profile.display_name
       resolve(username)
     }).catch((err) => { reject(err) })
   })
   fetchUserName.then((result) => {
-    task.userId = userId
-    task.channelId = body.channel.id
-    task.author = body.user.name
-    task.title = body.submission.title
-    task.description = body.submission.description
-    task.urgency = body.submission.urgency
-    task.assignee = result
-    sendConfirmation(task)
+    proposal.userId = userId
+    proposal.channelId = body.channel.id
+    proposal.title = body.submission.title
+    proposal.description = body.submission.description
+    proposal.urgency = body.submission.urgency
+    proposal.author = result
+    sendConfirmation(proposal)
 
-    return task
+    return proposal
   }).catch((err) => { console.error(err) })
 }
 
