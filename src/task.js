@@ -1,6 +1,5 @@
-const axios = require('axios')
 const debug = require('debug')('slash-command-template:task')
-const qs = require('querystring')
+const message = require('./message')
 const users = require('./users')
 
 /*
@@ -53,14 +52,7 @@ const create = (req, res) => {
   }
 
   // open the dialog by calling dialog.open method and sending the payload
-  axios.post(`${process.env.API_URL}/dialog.open`, qs.stringify(dialog))
-    .then((result) => {
-      debug('dialog.open: %o', result.data)
-      res.send('')
-    }).catch((err) => {
-      debug('dialog.open call failed: %o', err)
-      res.sendStatus(500)
-    })
+  message.openDialog(dialog, res)
 }
 
 /*
@@ -68,44 +60,33 @@ const create = (req, res) => {
  *  chat.postMessage to the user who created it
  */
 const sendConfirmation = (task) => {
-  axios.post('https://slack.com/api/chat.postMessage', qs.stringify({
-    token: process.env.SLACK_ACCESS_TOKEN,
-    channel: task.channelId,
-    as_user: true,
-    attachments: JSON.stringify([
+  const msg = {
+    title: `New task created by ${task.author}`,
+    // Get this from github issues
+    title_link: 'https://github.com',
+    text: task.text,
+    fields: [
       {
-        title: `New task created by ${task.author}`,
-        // Get this from github issues
-        title_link: 'https://github.com',
-        text: task.text,
-        fields: [
-          {
-            title: 'Title',
-            value: task.title
-          },
-          {
-            title: 'Description',
-            value: task.description || 'None provided'
-          },
-          {
-            title: 'Urgency',
-            value: task.urgency,
-            short: true
-          },
-          {
-            title: 'Assigned to',
-            value: task.assignee,
-            short: true
-          }
-        ]
+        title: 'Title',
+        value: task.title
+      },
+      {
+        title: 'Description',
+        value: task.description || 'None provided'
+      },
+      {
+        title: 'Urgency',
+        value: task.urgency,
+        short: true
+      },
+      {
+        title: 'Assigned to',
+        value: task.assignee,
+        short: true
       }
-    ])
-  })).then((result) => {
-    debug('sendConfirmation: %o', result.data)
-  }).catch((err) => {
-    debug('sendConfirmation error: %o', err)
-    console.error(err)
-  })
+    ]
+  }
+  message.postMessage(task.channelId, msg)
 }
 
 // Finish creating task. Call users.find to get the user's email address
@@ -119,6 +100,7 @@ const finish = (userId, body) => {
       resolve(username)
     }).catch((err) => { reject(err) })
   })
+  console.log(body.user)
   fetchUserName.then((result) => {
     task.userId = userId
     task.channelId = body.channel.id

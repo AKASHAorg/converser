@@ -2,7 +2,7 @@
  * Generate a random UUID
  */
 const UUID = (size) => {
-  const def = 32
+  const def = 16
   var len = size && size.length > 0 ? size : def
 
   var chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXTZabcdefghiklmnopqrstuvwxyz'.split('')

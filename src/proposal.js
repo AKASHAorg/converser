@@ -1,6 +1,5 @@
-const axios = require('axios')
 const debug = require('debug')('slash-command-template:task')
-const qs = require('querystring')
+const message = require('./message')
 const users = require('./users')
 const utils = require('./utils')
 
@@ -39,16 +38,8 @@ const create = (req, res) => {
       ]
     })
   }
-
   // open the dialog by calling dialog.open method and sending the payload
-  axios.post(`${process.env.API_URL}/dialog.open`, qs.stringify(dialog))
-    .then((result) => {
-      debug('dialog.open: %o', result.data)
-      res.send('')
-    }).catch((err) => {
-      debug('dialog.open call failed: %o', err)
-      res.sendStatus(500)
-    })
+  message.openDialog(dialog, res)
 }
 
 /*
@@ -58,30 +49,58 @@ const list = (req, res) => {
   let listOfProposals = []
   proposals.forEach(proposal => {
     listOfProposals.push({
-      title: `${proposal.title} - ${proposal.author}`,
+      title: `${proposal.title} by ${proposal.author} -- ${proposal.id}`,
       value: proposal.description
     })
   })
-  axios.post('https://slack.com/api/chat.postMessage', qs.stringify({
-    token: process.env.SLACK_ACCESS_TOKEN,
-    channel: req.body.channel_id,
-    as_user: true,
-    attachments: JSON.stringify([
+  const msg = {
+    title: `List of proposals`,
+    // Get this from github issues
+    title_link: 'https://github.com',
+    fields: listOfProposals
+  }
+  message.postMessage(req.body.channel_id, msg, res)
+}
+
+/*
+ *  List one proposal by id
+ */
+const lookupID = (req, res) => {
+  // find the right proposal by its ID
+  const { text, channel_id } = req.body
+  const proposal = proposals.filter(proposal => proposal.id === text)[0]
+  if (!proposal || !proposal.id) {
+    const msg = {
+      title: `I'm sorry, no proposal matches ID: ${text}`
+    }
+    message.postMessage(channel_id, msg, res)
+    return
+  }
+
+  const msg = {
+    title: `Details for proposal having ID: ${proposal.id}`,
+    // Get this from github issues
+    title_link: 'https://github.com',
+    fields: [
       {
-        title: `List of proposals`,
-        // Get this from github issues
-        title_link: 'https://github.com',
-        fields: listOfProposals
+        title: 'Title',
+        value: proposal.description
+      },
+      {
+        title: 'Author',
+        value: proposal.author
+      },
+      {
+        title: 'Created',
+        value: new Date(proposal.ts).toLocaleString()
+      },
+      {
+        title: 'Description',
+        value: proposal.description
       }
-    ])
-  })).then((result) => {
-    debug('sendConfirmation: %o', result.data)
-    res.send('')
-  }).catch((err) => {
-    debug('sendConfirmation error: %o', err)
-    console.error(err)
-    res.sendStatus(500)
-  })
+    ]
+  }
+  message.postMessage(channel_id, msg, res)
 }
 
 /*
@@ -89,34 +108,23 @@ const list = (req, res) => {
  *  chat.postMessage to the user who created it
  */
 const sendConfirmation = (proposal) => {
-  axios.post('https://slack.com/api/chat.postMessage', qs.stringify({
-    token: process.env.SLACK_ACCESS_TOKEN,
-    channel: proposal.channelId,
-    as_user: true,
-    attachments: JSON.stringify([
+  const msg = {
+    title: `New proposal created by ${proposal.author}`,
+    // Get this from github issues
+    title_link: 'https://github.com',
+    text: proposal.text,
+    fields: [
       {
-        title: `New proposal created by ${proposal.author}`,
-        // Get this from github issues
-        title_link: 'https://github.com',
-        text: proposal.text,
-        fields: [
-          {
-            title: 'Title',
-            value: proposal.title
-          },
-          {
-            title: 'Description',
-            value: proposal.description || 'None provided'
-          }
-        ]
+        title: 'Title',
+        value: proposal.title
+      },
+      {
+        title: 'Description',
+        value: proposal.description || 'None provided'
       }
-    ])
-  })).then((result) => {
-    debug('sendConfirmation: %o', result.data)
-  }).catch((err) => {
-    debug('sendConfirmation error: %o', err)
-    console.error(err)
-  })
+    ]
+  }
+  message.postMessage(proposal.channelId, msg)
 }
 
 // Finish creating the proposal. Call users.find to get the user's email address
@@ -141,10 +149,11 @@ const finish = (userId, body) => {
 
     // TODO: also persist data
     proposal.id = utils.UUID()
+    proposal.ts = Date.now()
     proposals.push(proposal)
 
     return proposal
   }).catch((err) => { console.error(err) })
 }
 
-module.exports = { create, list, finish, sendConfirmation }
+module.exports = { create, list, lookupID, finish, sendConfirmation }

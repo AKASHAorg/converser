@@ -72,6 +72,20 @@ app.post('/proposals', (req, res) => {
 })
 
 /*
+ * Endpoint to receive /proposal slash command from Slack.
+ * Checks verification token and opens a dialog to capture more info.
+ */
+app.post('/proposal', (req, res) => {
+  // Verify the signing secret
+  if (signature.isVerified(req)) {
+    proposal.lookupID(req, res)
+  } else {
+    debug('Verification token mismatch')
+    res.sendStatus(404)
+  }
+})
+
+/*
  * Endpoint to receive the dialog submission. Checks the verification token
  * and creates a task
  */
@@ -97,7 +111,6 @@ app.post('/interactive', (req, res) => {
       default:
         debug('No handler for dialog finish')
     }
-
   } else {
     debug('Token mismatch')
     res.sendStatus(404)
