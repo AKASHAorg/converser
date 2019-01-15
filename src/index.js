@@ -86,6 +86,20 @@ app.post('/proposal', (req, res) => {
 })
 
 /*
+ * Endpoint to receive /resolve slash command from Slack.
+ * Checks verification token and opens a dialog to capture more info.
+ */
+app.post('/resolve', (req, res) => {
+  // Verify the signing secret
+  if (signature.isVerified(req)) {
+    proposal.resolve(req, res)
+  } else {
+    debug('Verification token mismatch')
+    res.sendStatus(404)
+  }
+})
+
+/*
  * Endpoint to receive the dialog submission. Checks the verification token
  * and creates a task
  */

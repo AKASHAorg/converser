@@ -91,12 +91,51 @@ const lookupID = (req, res) => {
         value: proposal.author
       },
       {
+        title: 'Description',
+        value: proposal.description
+      },
+      {
         title: 'Created',
         value: new Date(proposal.ts).toLocaleString()
       },
       {
+        title: 'Status',
+        value: proposal.status || 'Pending'
+      }
+    ]
+  }
+  message.postMessage(channel_id, msg, res)
+}
+
+/*
+ *  Resolve proposal based on given id
+ */
+const resolve = (req, res) => {
+  // find the proposal ID and the text
+  const { text, channel_id } = req.body
+  const id = text.substring(0, text.indexOf(' '))
+  const resolution = text.substring(text.indexOf(' ') + 1)
+  // update proposal status
+  let proposal = proposals.find((p) => {
+    return p.id === id
+  })
+  proposal.status = `RESOLVED: ${resolution}`
+  const msg = {
+    title: `Proposal updated`,
+    // Get this from github issues
+    title_link: 'https://github.com',
+    fields: [
+      {
+        title: 'Title',
+        value: proposal.title
+      },
+      {
         title: 'Description',
-        value: proposal.description
+        value: proposal.description || 'None provided'
+      },
+      {
+        title: 'Status',
+        value: proposal.status
       }
     ]
   }
@@ -109,7 +148,7 @@ const lookupID = (req, res) => {
  */
 const sendConfirmation = (proposal) => {
   const msg = {
-    title: `New proposal created by ${proposal.author}`,
+    title: `New proposal created by ${proposal.author} -- ID ${proposal.id}`,
     // Get this from github issues
     title_link: 'https://github.com',
     text: proposal.text,
@@ -139,6 +178,7 @@ const finish = (userId, body) => {
     }).catch((err) => { reject(err) })
   })
   fetchUserName.then((result) => {
+    proposal.id = utils.UUID()
     proposal.userId = userId
     proposal.channelId = body.channel.id
     proposal.title = body.submission.title
@@ -148,7 +188,6 @@ const finish = (userId, body) => {
     sendConfirmation(proposal)
 
     // TODO: also persist data
-    proposal.id = utils.UUID()
     proposal.ts = Date.now()
     proposals.push(proposal)
 
@@ -156,4 +195,4 @@ const finish = (userId, body) => {
   }).catch((err) => { console.error(err) })
 }
 
-module.exports = { create, list, lookupID, finish, sendConfirmation }
+module.exports = { create, list, lookupID, resolve, finish, sendConfirmation }
