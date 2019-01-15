@@ -2,9 +2,13 @@ const axios = require('axios')
 const debug = require('debug')('slash-command-template:task')
 const qs = require('querystring')
 const users = require('./users')
+const utils = require('./utils')
+
+// temp
+let proposals = []
 
 /*
- *  Process requests for new proposals
+ *  Create a new proposal
  */
 const create = (req, res) => {
   // extract the slash command text, and trigger ID from payload
@@ -45,6 +49,39 @@ const create = (req, res) => {
       debug('dialog.open call failed: %o', err)
       res.sendStatus(500)
     })
+}
+
+/*
+ *  List existing proposals
+ */
+const list = (req, res) => {
+  let listOfProposals = []
+  proposals.forEach(proposal => {
+    listOfProposals.push({
+      title: `${proposal.title} - ${proposal.author}`,
+      value: proposal.description
+    })
+  })
+  axios.post('https://slack.com/api/chat.postMessage', qs.stringify({
+    token: process.env.SLACK_ACCESS_TOKEN,
+    channel: req.body.channel_id,
+    as_user: true,
+    attachments: JSON.stringify([
+      {
+        title: `List of proposals`,
+        // Get this from github issues
+        title_link: 'https://github.com',
+        fields: listOfProposals
+      }
+    ])
+  })).then((result) => {
+    debug('sendConfirmation: %o', result.data)
+    res.send('')
+  }).catch((err) => {
+    debug('sendConfirmation error: %o', err)
+    console.error(err)
+    res.sendStatus(500)
+  })
 }
 
 /*
@@ -102,8 +139,12 @@ const finish = (userId, body) => {
     proposal.author = result
     sendConfirmation(proposal)
 
+    // TODO: also persist data
+    proposal.id = utils.UUID()
+    proposals.push(proposal)
+
     return proposal
   }).catch((err) => { console.error(err) })
 }
 
-module.exports = { create, finish, sendConfirmation }
+module.exports = { create, list, finish, sendConfirmation }

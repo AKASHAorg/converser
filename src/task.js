@@ -4,7 +4,7 @@ const qs = require('querystring')
 const users = require('./users')
 
 /*
- *  Process requests for new tasks
+ *  Create a new task
  */
 const create = (req, res) => {
   // extract the slash command text, and trigger ID from payload
